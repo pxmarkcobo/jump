@@ -22,6 +22,7 @@ interface WorkoutsContextValue {
   getWorkout: (id: string) => Workout;
   addWorkout: (name: string) => void;
   removeWorkout: (id: string) => void;
+  updateWorkout: (id: string, workout: Workout) => void;
 }
 
 const WorkoutsContext = createContext<WorkoutsContextValue | null>(null);
@@ -31,25 +32,25 @@ const WorkoutsProvider: FunctionComponent = ({ children }) => {
     {
       id: "1",
       name: "Running",
-      duration: 330,
+      duration: 90,
       exercises: [
         {
           id: "1",
-          order: 1,
+          order: 0,
           name: "9:00 pace",
-          duration: 120,
+          duration: 10,
         },
         {
           id: "2",
-          order: 2,
+          order: 1,
           name: "6:00 pace",
-          duration: 110,
+          duration: 7,
         },
         {
           id: "3",
-          order: 3,
+          order: 2,
           name: "9:00 pace",
-          duration: 100,
+          duration: 8,
         },
       ],
     },
@@ -83,11 +84,20 @@ const WorkoutsProvider: FunctionComponent = ({ children }) => {
     workouts.value = workouts.value.filter((workout) => workout.id !== id);
   };
 
+  const updateWorkout = (workoutID: string, workout: Workout) => {
+    const updatedWorkouts = workouts.value.map((ex) =>
+      ex.id === workoutID ? { ...workout } : ex
+    );
+
+    workouts.value = updatedWorkouts;
+  };
+
   const value: WorkoutsContextValue = {
     workouts,
     getWorkout,
     addWorkout,
     removeWorkout,
+    updateWorkout,
   };
 
   return (

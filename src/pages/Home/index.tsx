@@ -32,7 +32,7 @@ export const HomeView = () => {
       </div>
       <div class="flex flex-col w-full max-w-sm space-y-4">
         <div class="space-y-2">
-          <h1 class="text-3xl font-bold">x🫡6</h1>
+          <h1 class="text-3xl font-bold tracking-wide">x🫡6</h1>
           <p class="text-gray-500 dark:text-gray-400">Track your workouts</p>
         </div>
         <div class="space-y-2">
