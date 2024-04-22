@@ -12,11 +12,14 @@ import {
 } from "react-countdown-circle-timer";
 import { ReactNode } from "preact/compat";
 
-function useAudio(url) {
+const useAudio = (url) => {
   const [audio] = useState(new Audio(url));
   const [playing, setPlaying] = useState(false);
 
-  const toggle = () => setPlaying(!playing);
+  const stop = () => {
+    audio.pause();
+    audio.currentTime = 0;
+  };
 
   useEffect(() => {
     playing
@@ -35,19 +38,20 @@ function useAudio(url) {
     };
   }, []);
 
-  return [playing, setPlaying, toggle];
-}
+  return { playing, setPlaying, stop };
+};
 
 export function WorkoutView() {
   const { route } = useLocation();
   const { getWorkout } = useWorkouts();
 
-  const [playing, setPlaying] = useAudio(sound);
+  const { setPlaying, stop } = useAudio(sound);
 
   const workout = useSignal(null);
   const activeExercise = useSignal(null);
   const timerOn = useSignal(false);
   const initialDuration = useSignal(0);
+  const resetKey = useSignal("");
 
   useEffect(() => {
     const obj = getWorkout(this.props.id);
@@ -67,24 +71,28 @@ export function WorkoutView() {
     return <h1>Loading</h1>;
   }
 
-  const renderTime: ReactNode = ({
-    remainingTime,
-    elapsedTime,
-    color,
-  }: TimeProps) => {
+  const renderTime: ReactNode = ({ remainingTime }: TimeProps) => {
     const minutes = Math.floor(remainingTime / 60);
     const seconds = remainingTime % 60;
 
     const display = minutes ? `${minutes}:${seconds}` : seconds;
 
+    const hint = remainingTime <= 5 ? "Keep going!" : "";
     return (
-      <div class="text-5xl" role="timer" aria-live="assertive">
-        {display}
+      <div
+        class="flex flex-col justify-center items-center"
+        role="timer"
+        aria-live="assertive"
+      >
+        <p class="h-5"></p>
+        <p class="text-4xl lining-nums">{display}</p>
+        <p class="h-5">{hint}</p>
       </div>
     );
   };
 
   const goNextActivity = ({ totalElapsedTime: number }): void | OnComplete => {
+    timerOn.value = false;
     const next = activeExercise.value.order + 1;
     const nextActivity = workout.value.exercises.find((ex) => ex.order == next);
 
@@ -92,14 +100,26 @@ export function WorkoutView() {
       alert("Session done!");
       return;
     }
-
     activeExercise.value = nextActivity;
+    timerOn.value = true;
   };
 
   const onUpdateHandler = (remainingTime) => {
-    console.log("remainingTime", remainingTime);
     if (timerOn.value && remainingTime == 5) {
       setPlaying(true);
+    }
+  };
+
+  const stopActivity = () => {
+    stop();
+    timerOn.value = false;
+    const activity = workout.value.exercises.find((ex) => ex.order == 0);
+    if (activity) {
+      activeExercise.value = activity;
+      resetKey.value = "ASSK#";
+      setTimeout(() => {
+        resetKey.value = "";
+      }, 0);
     }
   };
   return (
@@ -112,7 +132,7 @@ export function WorkoutView() {
             </p>
             {activeExercise.value && (
               <CountdownCircleTimer
-                key={activeExercise.value.id}
+                key={resetKey.value || activeExercise.value.id}
                 isPlaying={timerOn.value}
                 duration={activeExercise.value.duration}
                 colors={["#004777", "#F7B801", "#A30000", "#A30000"]}
@@ -170,7 +190,10 @@ export function WorkoutView() {
               )}
               {timerOn.value ? "Pause" : "Start"}
             </button>
-            <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 w-full">
+            <button
+              onClick={stopActivity}
+              class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 w-full"
+            >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="24"

@@ -3,19 +3,39 @@ import { createContext, FunctionComponent } from "preact";
 import { useContext } from "preact/hooks";
 import { v4 as uuidv4 } from "uuid";
 
-interface Exercise {
+export interface Activity {
   id: string;
+  setId: string;
   order: number;
   name: string;
   duration: number;
 }
 
-interface Workout {
+export interface Set {
+  id: string;
+  workoutId: string;
+  order: number;
+  repetition: number;
+  activities: Activity[];
+}
+
+export interface Workout {
   id: string;
   name: string;
   duration: number;
-  exercises: Exercise[];
+  sets: Set[];
 }
+
+const KEY = "workouts";
+
+const getDataFromStorage = () => {
+  const data = localStorage.getItem(KEY);
+  return data ? JSON.parse(data) : [];
+};
+
+const saveDataToStorage = (data: Workout[]) => {
+  localStorage.setItem(KEY, JSON.stringify(data));
+};
 
 interface WorkoutsContextValue {
   workouts: ReturnType<typeof signal<Workout[]>>;
@@ -28,33 +48,8 @@ interface WorkoutsContextValue {
 const WorkoutsContext = createContext<WorkoutsContextValue | null>(null);
 
 const WorkoutsProvider: FunctionComponent = ({ children }) => {
-  const workouts = signal<Workout[]>([
-    {
-      id: "1",
-      name: "Running",
-      duration: 90,
-      exercises: [
-        {
-          id: "1",
-          order: 0,
-          name: "9:00 pace",
-          duration: 10,
-        },
-        {
-          id: "2",
-          order: 1,
-          name: "6:00 pace",
-          duration: 7,
-        },
-        {
-          id: "3",
-          order: 2,
-          name: "9:00 pace",
-          duration: 8,
-        },
-      ],
-    },
-  ]);
+  const data = getDataFromStorage();
+  const workouts = signal<Workout[]>(data);
 
   const getWorkout = (id: string) => {
     const workout = workouts.value.find((workout) => workout.id === id);
@@ -62,34 +57,56 @@ const WorkoutsProvider: FunctionComponent = ({ children }) => {
   };
 
   const addWorkout = (name: string) => {
-    workouts.value = [
+    const workoutId = uuidv4();
+    const setId = uuidv4();
+    const _workouts = [
       {
-        id: uuidv4(),
+        id: workoutId,
         name: name,
         duration: 0,
-        exercises: [
+        sets: [
           {
-            id: uuidv4(),
-            order: 0,
-            name: "Exercise #1",
-            duration: 30,
+            id: setId,
+            workoutId: workoutId,
+            order: 1,
+            repetition: 1,
+            activities: [
+              {
+                id: uuidv4(),
+                setId: setId,
+                order: 1,
+                name: "Work",
+                duration: 90,
+              },
+              {
+                id: uuidv4(),
+                setId: setId,
+                order: 2,
+                name: "Rest",
+                duration: 30,
+              },
+            ],
           },
         ],
       },
       ...workouts.value,
     ];
+    saveDataToStorage(_workouts);
+    workouts.value = _workouts;
   };
 
   const removeWorkout = (id: string) => {
-    workouts.value = workouts.value.filter((workout) => workout.id !== id);
+    const _workouts = workouts.value.filter((workout) => workout.id !== id);
+    saveDataToStorage(_workouts);
+    workouts.value = _workouts;
   };
 
   const updateWorkout = (workoutID: string, workout: Workout) => {
-    const updatedWorkouts = workouts.value.map((ex) =>
+    const _workouts = workouts.value.map((ex) =>
       ex.id === workoutID ? { ...workout } : ex
     );
-
-    workouts.value = updatedWorkouts;
+    saveDataToStorage(_workouts);
+    workouts.value = _workouts;
   };
 
   const value: WorkoutsContextValue = {
