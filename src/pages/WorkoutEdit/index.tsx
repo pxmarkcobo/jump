@@ -2,6 +2,7 @@ import { useSignal } from "@preact/signals";
 import { useEffect, useRef, useState } from "preact/hooks";
 import {
   Activity,
+  Set,
   Workout,
   useWorkouts,
 } from "../../providers/WorkoutsProvider";
@@ -84,6 +85,25 @@ function EditDurationIcon() {
   );
 }
 
+function TrashIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      fill="red"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class="mr-2 h-4 w-4"
+      viewBox="0 0 448 512"
+    >
+      <path d="M135.2 17.7C140.6 6.8 151.7 0 163.8 0H284.2c12.1 0 23.2 6.8 28.6 17.7L320 32h96c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 96 0 81.7 0 64S14.3 32 32 32h96l7.2-14.3zM32 128H416V448c0 35.3-28.7 64-64 64H96c-35.3 0-64-28.7-64-64V128zm96 64c-8.8 0-16 7.2-16 16V432c0 8.8 7.2 16 16 16s16-7.2 16-16V208c0-8.8-7.2-16-16-16zm96 0c-8.8 0-16 7.2-16 16V432c0 8.8 7.2 16 16 16s16-7.2 16-16V208c0-8.8-7.2-16-16-16zm96 0c-8.8 0-16 7.2-16 16V432c0 8.8 7.2 16 16 16s16-7.2 16-16V208c0-8.8-7.2-16-16-16z" />
+    </svg>
+  );
+}
+
 function DurationDisplay({
   minuteLeft,
   minuteRight,
@@ -138,6 +158,7 @@ function SetActivityList({
   activities,
   activeActivityId,
   selectActivity,
+  deleteActivity,
 }) {
   return (
     <DragDropContext onDragEnd={onDragEnd}>
@@ -155,21 +176,33 @@ function SetActivityList({
                     ref={provided.innerRef}
                     {...provided.draggableProps}
                     {...provided.dragHandleProps}
-                    onClick={() => selectActivity(activity)}
-                    className={`mt-4 p-4 bg-gray-100 rounded-lg ${
-                      activeActivityId === activity.id
-                        ? "border-[1px] border-lime-600"
-                        : ""
-                    }`}
+                    className="mt-4 flex flex-row items-center gap-2"
                   >
-                    <div className="grid grid-cols-3 items-center text-sm font-medium">
-                      <div className="flex items-center space-x-2">
-                        <div>{activity.name}</div>
-                      </div>
-                      <div className="col-span-2 text-right">
-                        {secondsToMMSS(activity.duration)}
+                    <div
+                      onClick={() => selectActivity(activity)}
+                      className={cn(
+                        "p-4 bg-gray-100 rounded-lg grow",
+                        activeActivityId === activity.id
+                          ? "border-[1px] border-lime-600"
+                          : ""
+                      )}
+                    >
+                      <div className="grid grid-cols-3 items-center text-sm font-medium">
+                        <div className="flex items-center space-x-2">
+                          <div>{activity.name}</div>
+                        </div>
+                        <div className="col-span-2 text-right">
+                          {secondsToMMSS(activity.duration)}
+                        </div>
                       </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => deleteActivity(activity)}
+                      class="whitespace-nowrap rounded-md text-sm font-medium bg-background"
+                    >
+                      <TrashIcon />
+                    </button>
                   </div>
                 )}
               </Draggable>
@@ -264,7 +297,6 @@ export function WorkoutEditView() {
 
   const onDragEnd = (result) => {
     if (!result.destination) return;
-    console.log("result", result);
     const set = findParentSet(result.draggableId);
     const activities = Array.from(set.activities);
     const [removed] = activities.splice(result.source.index, 1);
@@ -274,7 +306,6 @@ export function WorkoutEditView() {
       ...act,
       order: index + 1,
     }));
-    console.log("activities", set.activities);
 
     const _sets = workout.value.sets.map((s) =>
       s.id === set.id ? { ...set } : s
@@ -329,15 +360,46 @@ export function WorkoutEditView() {
 
   const editActivityName = () => {
     const name = prompt("Please enter activity name:");
-    activity.value = {
-      ...activity.value,
-      name,
-    };
+    if (name.trim() != "") {
+      activity.value = {
+        ...activity.value,
+        name,
+      };
+    }
   };
 
-  const selectActivity = (act) => {
+  const selectActivity = (act: Activity) => {
     activity.value = act;
     setDurationDisplay(act.duration);
+  };
+
+  const deleteActivity = (act: Activity) => {
+    const set = workout.value.sets.find((set) => set.id == act.setId);
+    const { activities } = set;
+    if (!set) {
+      return;
+    }
+    const index = activities.findIndex((activity) => activity.id == act.id);
+
+    const [removed] = activities.splice(index, 1);
+    set.activities = activities.map((activity, index) => ({
+      ...activity,
+      order: index + 1,
+    }));
+
+    if (removed.id == activity.value.id) {
+      activity.value = null;
+      setDurationDisplay(0);
+    }
+
+    const _sets = workout.value.sets.map((s) =>
+      s.id === set.id ? { ...set } : s
+    );
+
+    workout.value = {
+      ...workout.value,
+      sets: _sets,
+    };
   };
 
   const addNewSet = () => {
@@ -370,6 +432,15 @@ export function WorkoutEditView() {
       ...workout.value,
       sets: [...sets, set],
     };
+  };
+
+  const deleteSet = (set: Set) => {
+    let _sets = workout.value.sets.filter((s) => s.id != set.id);
+    _sets = _sets.map((s, index) => ({
+      ...s,
+      order: index + 1,
+    }));
+    workout.value = { ...workout.value, sets: _sets };
   };
 
   const addNewActivity = (setId) => {
@@ -486,7 +557,9 @@ export function WorkoutEditView() {
               isEditing={isEditing}
             />
             <p class="text-sm text-center mb-1 font-semibold">
-              {activity.value.name}
+              {activity.value
+                ? activity.value.name
+                : "Please select activity to edit"}
             </p>
             <div class="grid grid-cols-2 w-full gap-2">
               <button
@@ -511,6 +584,7 @@ export function WorkoutEditView() {
             <div class="border-[1px] border-gray-400 border-dotted p-4 mb-4 rounded-xl">
               <div class="flex flex-row justify-between">
                 <p class="font-semibold">Set #{set.order}</p>
+
                 <div class="flex flex-row align-middle gap-1">
                   <button onClick={() => editSetRepetition(set.id, "decrease")}>
                     <MinusIcon className="h-[18px] w-[18px] mr-0" />
@@ -519,13 +593,21 @@ export function WorkoutEditView() {
                   <button onClick={() => editSetRepetition(set.id, "increase")}>
                     <AddIcon className="h-[18px] w-[18px] m-0" />
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteSet(set)}
+                    class="ml-2 whitespace-nowrap rounded-md text-sm font-medium bg-background"
+                  >
+                    <TrashIcon />
+                  </button>
                 </div>
               </div>
               <SetActivityList
                 onDragEnd={onDragEnd}
                 activities={set.activities}
-                activeActivityId={activity.value.id}
+                activeActivityId={activity.value ? activity.value.id : -1}
                 selectActivity={selectActivity}
+                deleteActivity={deleteActivity}
               />
               <button
                 onClick={() => addNewActivity(set.id)}

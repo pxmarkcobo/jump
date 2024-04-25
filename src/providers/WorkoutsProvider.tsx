@@ -63,7 +63,7 @@ const WorkoutsProvider: FunctionComponent = ({ children }) => {
       {
         id: workoutId,
         name: name,
-        duration: 0,
+        duration: 120,
         sets: [
           {
             id: setId,
