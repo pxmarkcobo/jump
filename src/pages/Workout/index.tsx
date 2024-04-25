@@ -1,6 +1,11 @@
 import { useSignal } from "@preact/signals";
 import { useEffect, useState } from "preact/hooks";
-import { useWorkouts } from "../../providers/WorkoutsProvider";
+import {
+  Activity,
+  Set,
+  Workout,
+  useWorkouts,
+} from "../../providers/WorkoutsProvider";
 import { useLocation } from "preact-iso";
 import { secondsToMMSS } from "../../utils";
 import sound from "../../assets/5seconds.mp3";
@@ -41,27 +46,54 @@ const useAudio = (url) => {
   return { playing, setPlaying, stop };
 };
 
+interface ExtendedSet extends Set {
+  round: number;
+  activityStartIndex: number;
+  activityEndIndex: number;
+}
+
 export function WorkoutView() {
   const { route } = useLocation();
   const { getWorkout } = useWorkouts();
 
   const { setPlaying, stop } = useAudio(sound);
 
-  const workout = useSignal(null);
-  const activeExercise = useSignal(null);
-  const timerOn = useSignal(false);
-  const initialDuration = useSignal(0);
+  const workout = useSignal<Workout>(null);
+  const sets = useSignal<ExtendedSet[]>([]);
+  const activities = useSignal([]);
+  const activity = useSignal<Activity>(null);
+  const inSession = useSignal(false);
   const resetKey = useSignal("");
 
   useEffect(() => {
     const obj = getWorkout(this.props.id);
     if (obj) {
       workout.value = obj;
-      const activity = obj.exercises.find((ex) => ex.order == 0);
-      if (activity) {
-        activeExercise.value = activity;
-        initialDuration.value = activity.duration;
+
+      let _activities = [];
+      let _sets = [];
+      for (const set of obj.sets) {
+        const start = _activities.length;
+        const end = start + set.activities.length - 1;
+        _sets.push({
+          ...set,
+          round: 1,
+          activityStartIndex: start,
+          activityEndIndex: end,
+        });
+        _activities = _activities.concat(set.activities);
       }
+
+      if (_activities.length == 0) {
+        alert("No activites for this workout.");
+        route("/");
+      }
+
+      console.log(_sets);
+
+      sets.value = _sets;
+      activities.value = _activities;
+      activity.value = _activities[0];
     } else {
       route("/404");
     }
@@ -71,57 +103,79 @@ export function WorkoutView() {
     return <h1>Loading</h1>;
   }
 
-  const renderTime: ReactNode = ({ remainingTime }: TimeProps) => {
+  function renderTime(props: TimeProps): ReactNode {
+    const { remainingTime } = props;
     const minutes = Math.floor(remainingTime / 60);
-    const seconds = remainingTime % 60;
+    let seconds = (remainingTime % 60).toString();
 
-    const display = minutes ? `${minutes}:${seconds}` : seconds;
+    let display = seconds;
+    if (minutes) {
+      seconds = seconds.padStart(2, "0");
+      display = `${minutes}:${seconds}`;
+    }
 
-    const hint = remainingTime <= 5 ? "Keep going!" : "";
     return (
       <div
         class="flex flex-col justify-center items-center"
         role="timer"
         aria-live="assertive"
       >
-        <p class="h-5"></p>
-        <p class="text-4xl lining-nums">{display}</p>
-        <p class="h-5">{hint}</p>
+        <p class="text-5xl lining-nums">{display}</p>
       </div>
     );
-  };
+  }
 
-  const goNextActivity = ({ totalElapsedTime: number }): void | OnComplete => {
-    timerOn.value = false;
-    const next = activeExercise.value.order + 1;
-    const nextActivity = workout.value.exercises.find((ex) => ex.order == next);
+  function goNextActivity(totalElapsedTime: number): OnComplete | void {
+    inSession.value = false;
 
-    if (nextActivity == undefined) {
-      alert("Session done!");
-      return;
+    const set = sets.value.find((s) => s.id == activity.value.setId);
+    let index = activities.value.findIndex(
+      (act) => act.id == activity.value.id
+    );
+
+    if (index == set.activityEndIndex) {
+      // last activity in the set reached
+      if (set.round < set.repetition) {
+        // same set, next round
+        index = set.activityStartIndex;
+        set.round += 1;
+      } else {
+        // go next set
+        index += 1;
+        if (index == activities.value.length) {
+          // no more activities
+          alert("Session done. Good job!");
+          return;
+        }
+      }
+    } else {
+      // go next activity
+      index += 1;
     }
-    activeExercise.value = nextActivity;
-    timerOn.value = true;
-  };
+
+    activity.value = activities.value[index];
+    inSession.value = true;
+  }
 
   const onUpdateHandler = (remainingTime) => {
-    if (timerOn.value && remainingTime == 5) {
+    // play audio in last 5 seconds
+    if (inSession.value && remainingTime == 5) {
       setPlaying(true);
     }
   };
 
   const stopActivity = () => {
     stop();
-    timerOn.value = false;
-    const activity = workout.value.exercises.find((ex) => ex.order == 0);
-    if (activity) {
-      activeExercise.value = activity;
-      resetKey.value = "ASSK#";
-      setTimeout(() => {
-        resetKey.value = "";
-      }, 0);
-    }
+    inSession.value = false;
+    activity.value = activities.value[0];
+
+    // force re-render countdown circle
+    resetKey.value = "5-little-monkeys-humpy-dumpy";
+    setTimeout(() => {
+      resetKey.value = "";
+    }, 0);
   };
+
   return (
     <div class="flex-col">
       <div class="flex-1 flex flex-col gap-4">
@@ -130,33 +184,33 @@ export function WorkoutView() {
             <p class="text-xl antialiased font-semibold">
               {workout.value.name}
             </p>
-            {activeExercise.value && (
+            {activity.value && (
               <CountdownCircleTimer
-                key={resetKey.value || activeExercise.value.id}
-                isPlaying={timerOn.value}
-                duration={activeExercise.value.duration}
+                key={resetKey.value || activity.value.id}
+                isPlaying={inSession.value}
+                duration={activity.value.duration}
                 colors={["#004777", "#F7B801", "#A30000", "#A30000"]}
                 colorsTime={[10, 5, 2, 0]}
                 onUpdate={onUpdateHandler}
                 onComplete={goNextActivity}
-              >
-                {renderTime}
-              </CountdownCircleTimer>
+                // @ts-ignore
+                children={renderTime}
+              />
             )}
             <div class="text-sm text-center">
               <p class="mb-1">
-                {activeExercise.value && (
-                  <span class="font-semibold">{activeExercise.value.name}</span>
+                {activity.value && (
+                  <span class="font-semibold">{activity.value.name}</span>
                 )}
               </p>
             </div>
           </div>
           <div class="grid grid-cols-2 w-full gap-2">
             <button
-              onClick={() => (timerOn.value = !timerOn.value)}
+              onClick={() => (inSession.value = !inSession.value)}
               class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 w-full"
             >
-              {timerOn.value ? (
+              {inSession.value ? (
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="24"
@@ -188,7 +242,7 @@ export function WorkoutView() {
                   <path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z" />
                 </svg>
               )}
-              {timerOn.value ? "Pause" : "Start"}
+              {inSession.value ? "Pause" : "Start"}
             </button>
             <button
               onClick={stopActivity}
@@ -216,23 +270,33 @@ export function WorkoutView() {
           </div>
         </div>
         <section>
-          {workout.value.exercises.map((exercise, index) => (
-            <div
-              onClick={() => (activeExercise.value = exercise)}
-              class={`mt-2 p-4 bg-gray-100 rounded-lg w-[300px] ${
-                activeExercise.value.id == exercise.id
-                  ? "border-[1px] border-lime-600 "
-                  : ""
-              }`}
-            >
-              <div class="grid grid-cols-3 items-center text-sm font-medium">
-                <div class="flex items-center space-x-2">
-                  <div>{exercise.name}</div>
-                </div>
-                <div class="col-span-2 text-right">
-                  {secondsToMMSS(exercise.duration)}
-                </div>
+          {sets.value.map((set) => (
+            <div class="border-[1px] border-gray-400 border-dotted p-4 mb-4 rounded-xl">
+              <div class="flex flex-row justify-between">
+                <p class="font-semibold">Set #{set.order}</p>
+                <span class="font-normal">
+                  {set.round} out of {set.repetition}
+                </span>
               </div>
+              {set.activities.map((act) => (
+                <div
+                  onClick={() => (activity.value = act)}
+                  className={`mt-2 p-4 bg-gray-100 rounded-lg w-[300px] ${
+                    act.id === activity.value.id
+                      ? "border-[1px] border-lime-600"
+                      : ""
+                  }`}
+                >
+                  <div className="grid grid-cols-3 items-center text-sm font-medium">
+                    <div className="flex items-center space-x-2">
+                      <div>{act.name}</div>
+                    </div>
+                    <div className="col-span-2 text-right">
+                      {secondsToMMSS(act.duration)}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ))}
         </section>
