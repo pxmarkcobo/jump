@@ -281,7 +281,7 @@ export function WorkoutView() {
               {set.activities.map((act) => (
                 <div
                   onClick={() => (activity.value = act)}
-                  className={`mt-2 p-4 bg-gray-100 rounded-lg w-[300px] ${
+                  className={`mt-2 p-4 bg-gray-100 rounded-lg ${
                     act.id === activity.value.id
                       ? "border-[1px] border-lime-600"
                       : ""

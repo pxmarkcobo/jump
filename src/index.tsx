@@ -14,8 +14,8 @@ export function App() {
     <LocationProvider>
       <WorkoutsProvider>
         <Header />
-        <main class="w-full relative flex justify-center">
-          <div class="max-w-[500px] py-8">
+        <main class="w-full p-8 flex justify-center">
+          <div class="w-96 sm:w-2/3 md:w-1/2 xl:w-1/3">
             <Router>
               <Route path="/" component={HomeView} />
               <Route path="/workout/:id" component={WorkoutView} />

@@ -21,7 +21,7 @@ function MinusIcon({ className = "" }) {
       stroke-width="2"
       stroke-linecap="round"
       stroke-linejoin="round"
-      class={`mr-2 h-6 w-6 fill-red-700 ${className}`}
+      class={`h-6 w-6 fill-red-700 ${className}`}
       viewBox="0 0 512 512"
     >
       <path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM184 232H328c13.3 0 24 10.7 24 24s-10.7 24-24 24H184c-13.3 0-24-10.7-24-24s10.7-24 24-24z" />
@@ -38,7 +38,7 @@ function AddIcon({ className = "" }) {
       stroke-width="2"
       stroke-linecap="round"
       stroke-linejoin="round"
-      class={`mr-2 h-6 w-6 fill-green-700 ${className}`}
+      class={`h-6 w-6 fill-green-700 ${className}`}
       viewBox="0 0 512 512"
     >
       <path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM232 344V280H168c-13.3 0-24-10.7-24-24s10.7-24 24-24h64V168c0-13.3 10.7-24 24-24s24 10.7 24 24v64h64c13.3 0 24 10.7 24 24s-10.7 24-24 24H280v64c0 13.3-10.7 24-24 24s-24-10.7-24-24z" />
@@ -156,7 +156,7 @@ function SetActivityList({
                     {...provided.draggableProps}
                     {...provided.dragHandleProps}
                     onClick={() => selectActivity(activity)}
-                    className={`mt-2 p-4 bg-gray-100 rounded-lg w-[300px] ${
+                    className={`mt-4 p-4 bg-gray-100 rounded-lg ${
                       activeActivityId === activity.id
                         ? "border-[1px] border-lime-600"
                         : ""
